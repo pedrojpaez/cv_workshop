@@ -102,6 +102,7 @@ def parse_args():
     parser.add_argument('--model-dir', type=str, default=os.environ['SM_MODEL_DIR'])
     parser.add_argument('--train', type=str, default=os.environ['SM_CHANNEL_TRAIN'])
     parser.add_argument('--test', type=str, default=os.environ['SM_CHANNEL_TEST'])
+    parser.add_argument('--images', type=str, default=os.environ['SM_CHANNEL_IMAGES'])
     
     parser.add_argument('--label-smooth', action='store_true', help='Use label smoothing.')
     args = parser.parse_args()
@@ -111,7 +112,7 @@ class GroundTruthDataset(gluon.data.Dataset):
     """
     Custom Dataset to handle the GroundTruth json file
     """
-    def __init__(self, data_path,channel, field_name):
+    def __init__(self, data_path,channel,image_path, field_name):
         """
         Parameters
         ---------
@@ -121,6 +122,7 @@ class GroundTruthDataset(gluon.data.Dataset):
 
         """
         self.data_path = data_path
+        self.image_path= image_path
         self.field_name = field_name
         self.image_info = []
         with open(os.path.join(data_path, '{}.manifest'.format(channel))) as f:
@@ -143,8 +145,8 @@ class GroundTruthDataset(gluon.data.Dataset):
         label: np.NDArray bounding box labels of the form [[x1,y1, x2, y2, class], ...]
         """
         info = self.image_info[idx]
-        image = mx.image.imread(os.path.join(data_dir,info['source-ref'].split('/')[-1]))
-        boxes = info[field_name]['annotations']
+        image = mx.image.imread(os.path.join(self.image_path,info['source-ref'].split('/')[-1]))
+        boxes = info[self.field_name]['annotations']
         label = []
         for box in boxes:
             label.append([box['left'], box['top'], 
@@ -156,11 +158,14 @@ class GroundTruthDataset(gluon.data.Dataset):
         return len(self.image_info)
 
 def get_dataset(args): 
-    #print(os.listdir('/opt/ml/input/data/'))
+    print(os.listdir('/opt/ml/input/data/'))
+    print(os.listdir('/opt/ml/input/data/train/'))
+    #print(os.listdir('/opt/ml/input/data/train/'))
+    #print(os.listdir('/opt/ml/input/data/train-manifest/'))
     #train_dataset = gcv.data.RecordFileDetection(os.path.join('/opt/ml/input/data','train_0'))
     #val_dataset = gcv.data.RecordFileDetection(os.path.join('/opt/ml/input/test','test_0'))
-    train_dataset = GroundTruthDataset(args.train,'train',"label-job-test")
-    val_dataset = GroundTruthDataset(args.test,'validation',"label-job-test")
+    train_dataset = GroundTruthDataset(args.train,'train',args.images,"label-job-test")
+    val_dataset = GroundTruthDataset(args.test,'validation',args.images,"label-job-test")
     
     val_metric = VOC07MApMetric(iou_thresh=0.5)
     
